@@ -53,6 +53,8 @@ class byoSnake : public byoGameBase
         wxTimer m_Timer;
 
         Direction m_Direction;
+        //Direction m_Direction_l;
+        bool m_RandStart;
 
         void OnKeyDown(wxKeyEvent& event);
         void OnPaint(wxPaintEvent& event);

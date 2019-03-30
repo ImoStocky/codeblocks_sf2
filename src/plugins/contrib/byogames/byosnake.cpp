@@ -7,6 +7,7 @@
 #include <wx/dc.h>
 #include <wx/dcbuffer.h>
 
+#include "configmanager.h"
 #include "byosnake.h"
 #include "byogame.h"
 
@@ -29,8 +30,13 @@ byoSnake::byoSnake(wxWindow* parent,const wxString& GameName):
     m_KillCnt(0),
     m_Font(GetFont()),
     m_Timer(this,-1),
-    m_Direction(dDown)
+    m_Direction(dDown),
+    m_RandStart(0)
+    //m_Direction_l(dDown),
 {
+    ConfigManager* cfg = Manager::Get()->GetConfigManager(_T("byogames"));
+    m_RandStart = cfg->ReadBool(_T("/byosnake_rand_start"),   false);
+
     RecalculateSizeHints(m_FieldHoriz+2,m_FieldVert+4);
     InitializeSnake();
     RandomizeApple();
@@ -48,32 +54,46 @@ void byoSnake::OnKeyDown(wxKeyEvent& event)
         SetPause(!IsPaused());
         Refresh();
     }
+    if ( event.GetKeyCode() == 'r' || event.GetKeyCode() == 'R')
+    {
+        //Toggle randomized start
+        m_RandStart = !m_RandStart;
+        ConfigManager* cfg = Manager::Get()->GetConfigManager(_T("byogames"));
+        cfg->Write(_T("/byosnake_rand_start"),(bool)m_RandStart);
+    }
 
     if ( IsPaused() ) return;
-
-    if ( event.GetKeyCode() == WXK_LEFT )
+    //Prevent snake from going reverse and dying
+    switch (event.GetKeyCode())
     {
-        m_Direction = dLeft;
-        Move();
+        case WXK_LEFT:
+            if (m_Direction != dRight)
+            {
+                m_Direction = dLeft;
+            }
+            break;
+        case WXK_RIGHT:
+            if (m_Direction != dLeft)
+            {
+                m_Direction = dRight;
+            }
+            break;
+        case WXK_UP:
+            if (m_Direction != dDown)
+            {
+                m_Direction = dUp;
+            }
+            break;
+        case WXK_DOWN:
+            if (m_Direction != dUp)
+            {
+                m_Direction = dDown;
+            }
+            break;
+        default:
+            break;
     }
-
-    if ( event.GetKeyCode() == WXK_RIGHT )
-    {
-        m_Direction = dRight;
-        Move();
-    }
-
-    if ( event.GetKeyCode() == WXK_UP )
-    {
-        m_Direction = dUp;
-        Move();
-    }
-
-    if ( event.GetKeyCode() == WXK_DOWN )
-    {
-        m_Direction = dDown;
-        Move();
-    }
+    Move();
 }
 
 void byoSnake::OnPaint(wxPaintEvent& /*event*/)
@@ -98,13 +118,44 @@ void byoSnake::OnTimer(wxTimerEvent& /*event*/)
 
 void byoSnake::InitializeSnake()
 {
+    //Start from random position
+    int xPosRand = m_FieldHoriz/2;
+    int yPosRand = 0;
+    m_Direction = dDown;
+
+    if (m_RandStart) {
+
+        xPosRand = ( (int) ( (float)rand() * (float)(m_FieldHoriz-2) / (float)RAND_MAX ) ) % (m_FieldHoriz-1)+1;
+        yPosRand = ( (int) ( (float)rand() * (float)(m_FieldVert-2) / (float)RAND_MAX ) ) % (m_FieldVert-1)+1;
+        int dRand = ( (int) ( (float)rand() * (float)4 / (float)RAND_MAX ) ) % 4;
+
+        //Pick direction randomly and start from side which is appropriate
+        switch (dRand) {
+        case 0:
+            m_Direction = dDown;
+            yPosRand = 0;
+            break;
+        case 1:
+            m_Direction = dUp;
+            yPosRand = m_FieldVert-1;
+            break;
+        case 2:
+            m_Direction = dLeft;
+            xPosRand = m_FieldHoriz-1;
+            break;
+        default:
+            m_Direction = dRight;
+            xPosRand = 0;
+            break;
+        }
+    }
+
     for ( int i=0; i<m_SnakeLen; i++ )
     {
-        m_SnakeX[i] = m_FieldHoriz/2;
-        m_SnakeY[i] = 0;
+        m_SnakeX[i] = xPosRand;
+        m_SnakeY[i] = yPosRand;
     }
     m_InitialSlowdownCnt = 2;
-    m_Direction = dDown;
     RebuildField();
     UpdateSpeed();
 }
@@ -292,11 +343,13 @@ void byoSnake::DrawStats(wxDC* DC)
     wxString Line2 = IsPaused() ? _("Paused") : wxEmptyString;
     #endif
     wxString Line3 = GetBackToWorkString();
+    wxString Line4 = wxString::Format(_("Random start: %s"),m_RandStart?wxString(_("Enabled")):wxString(_("Disabled")));
     DC->DrawText(Line1,5,5);
     int xs, ys;
     DC->GetTextExtent(Line1,&xs,&ys);
-    DC->DrawText(Line2,5,5+2*ys);
-    DC->DrawText(Line3,5,5+4*ys);
+    DC->DrawText(Line2,150,5+2*ys);
+    DC->DrawText(Line4,5,5+2*ys);
+    DC->DrawText(Line3,5,5+6*ys);
 }
 
 void byoSnake::GetsBigger()
