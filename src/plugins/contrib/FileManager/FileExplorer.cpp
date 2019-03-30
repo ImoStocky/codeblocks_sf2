@@ -38,6 +38,7 @@ int ID_FILENEWFOLDER=wxNewId();
 int ID_FILEMAKEFAV=wxNewId();
 int ID_FILECOPY=wxNewId();
 int ID_FILEDUP=wxNewId();
+int ID_FILESHOW=wxNewId();
 int ID_FILEMOVE=wxNewId();
 int ID_FILEDELETE=wxNewId();
 int ID_FILERENAME=wxNewId();
@@ -255,6 +256,7 @@ BEGIN_EVENT_TABLE(FileExplorer, wxPanel)
     EVT_MENU(ID_FILEMOVE,FileExplorer::OnMove)
     EVT_MENU(ID_FILEDELETE,FileExplorer::OnDelete)
     EVT_MENU(ID_FILERENAME,FileExplorer::OnRename)
+    EVT_MENU(ID_FILESHOW,FileExplorer::OnOpenContainingFolder)
     EVT_MENU(ID_FILEEXPANDALL,FileExplorer::OnExpandAll)
     EVT_MENU(ID_FILECOLLAPSEALL,FileExplorer::OnCollapseAll)
     EVT_MENU(ID_FILESETTINGS,FileExplorer::OnSettings)
@@ -1236,6 +1238,7 @@ void FileExplorer::OnRightClick(wxTreeEvent &event)
         }
         if (!IsBrowsingVCSTree())
         {
+            Popup->Append(ID_FILESHOW,_("&Open containing folder"));
             Popup->Append(ID_FILEDUP,_("&Duplicate"));
             Popup->Append(ID_FILECOPY,_("&Copy to..."));
             Popup->Append(ID_FILEMOVE,_("&Move to..."));
@@ -1403,6 +1406,42 @@ void FileExplorer::OnDuplicate(wxCommandEvent &/*event*/)
     //TODO: Reselect item in new location?? (what it outside root scope?)
 }
 
+struct OpenContainingFolderData
+{
+    wxString command;
+    bool supportSelect;
+
+    OpenContainingFolderData() : supportSelect(false) {}
+    OpenContainingFolderData(const wxString &command, bool select) : command(command), supportSelect(select) {}
+};
+
+void FileExplorer::OnOpenContainingFolder(wxCommandEvent &/*event*/)
+{
+    ConfigManager* cfg = Manager::Get()->GetConfigManager(_T("app"));
+    const wxString &command = cfg->Read(_T("open_containing_folder"), cbDEFAULT_OPEN_FOLDER_CMD);
+#if defined __WXMSW__ || defined __WXMAC__
+    OpenContainingFolderData cmdData(command, true);
+#else
+    OpenContainingFolderData cmdData=detectNautilus(command, cfg);
+#endif
+
+    //const wxString& fullPath = ed->GetFilename();
+    const wxString fullPath(GetFullPath(m_selectti[0]));  //SINGLE: m_Tree->GetSelection()
+    cmdData.command << wxT(" ");
+    if (!cmdData.supportSelect)
+    {
+        // Cannot select the file with with most editors, so just extract the folder name
+        wxString splitPath;
+        wxFileName::SplitPath(fullPath, &splitPath, nullptr, nullptr);
+        cmdData.command << splitPath;
+    }
+    else
+        cmdData.command << fullPath;
+
+    wxExecute(cmdData.command);
+    Manager::Get()->GetLogManager()->DebugLog(F(wxT("Executing command to open folder: '%s'"),
+                                                cmdData.command.wx_str()));
+}
 
 void FileExplorer::CopyFiles(const wxString &destination, const wxArrayString &selectedfiles)
 {

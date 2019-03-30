@@ -95,6 +95,7 @@ private:
     void OnAddFavorite(wxCommandEvent &event);
     void OnCopy(wxCommandEvent &event);
     void OnDuplicate(wxCommandEvent &event);
+    void OnOpenContainingFolder(wxCommandEvent &);
     void OnMove(wxCommandEvent &event);
     void OnDelete(wxCommandEvent &event);
     void OnRename(wxCommandEvent &event);
